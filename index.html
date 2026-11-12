@@ -22,22 +22,43 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;color
 .site{display:none!important}.print-only{display:block!important}.print-page{page-break-after:always;break-after:page;padding:0}.print-page:last-child{page-break-after:auto;break-after:auto}.print-head{border-bottom:2px solid #243c60;padding-bottom:10px;margin-bottom:13px;display:block;position:relative}.print-eyebrow{color:#456da3;font-size:8.5pt;font-weight:800;letter-spacing:1px}.print-head h1{font-size:18pt;line-height:1.25;letter-spacing:-.5pt;margin:4px 0 2px;font-weight:850;white-space:nowrap}.print-date{font-size:10pt;color:#637286;font-weight:700}.print-meta{color:#718092;font-size:9pt;position:absolute;right:0;bottom:9px;white-space:nowrap}.print-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;align-items:start}.print-card{border:1px solid #ccd5e2;border-radius:9px;overflow:hidden;break-inside:avoid;page-break-inside:avoid}.print-cardheader{background:#f3f6fa;display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1px solid #dce4ed}.print-cardheader strong{font-size:12pt;font-weight:850}.print-cardheader span{font-size:9pt;color:#637286}.print-table{width:100%;table-layout:fixed;border-collapse:collapse}.print-table th{font-size:8pt;color:#6b7b8c;font-weight:700;background:#fbfcfd;padding:6px 4px;border-bottom:1px solid #e5eaf0;text-align:center}.print-table th:nth-child(2){text-align:left}.print-table td{font-size:9pt;padding:6.5px 4px;border-bottom:1px solid #edf0f3;vertical-align:middle}.print-table tr:last-child td{border-bottom:0}.print-table td:first-child{width:22px;text-align:center}.print-table td:nth-child(2){line-height:1.3;word-break:keep-all;font-weight:600}.print-table td:nth-child(3){text-align:center;color:#53657a;white-space:nowrap}.print-table td:nth-child(4){text-align:center;color:#344a60;white-space:nowrap}.print-check{width:13px;height:13px;display:inline-grid;place-items:center;border:1.3px solid #8293a6;border-radius:2px;font-size:9pt;font-weight:800;color:#008579;line-height:1}.print-check.checked{border-color:#008579}.print-note{padding:8px 10px;border-top:1px dashed #d7e1ed;min-height:32px;color:#617488;font-size:8.5pt}.print-rest{text-align:center;padding:22px 10px;color:#587568;font-size:11pt}.print-total{margin-top:14px;padding:11px 12px;border:1px solid #cbd7e5;background:#f8fafc;border-radius:9px}.print-total h3{margin:0 0 6px;font-size:11pt}.print-total p{margin:0;color:#52667d;font-size:9.5pt}.print-reflect{margin-top:11px;border:1px solid #ccd5e2;border-radius:8px;padding:11px 12px}.print-reflect strong{font-size:10pt}.print-lines{border-bottom:1px dashed #aebdce;height:20px}.print-footer{margin-top:10px;text-align:right;font-size:8pt;color:#8593a4}.print-page:last-child .print-footer{display:none}
 }
 </style>
-</head>
+<style>
+.family-panel{border:1px solid #dce5f1;border-radius:16px;background:white;padding:16px 20px;margin:0 0 15px}
+.family-panel h2{font-size:15px;margin:0 0 6px}.family-panel p{font-size:12px;color:#65768e;margin:0}
+.family-fields{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.family-fields input{padding:10px;border:1px solid #ccd8e7;border-radius:8px;width:200px;max-width:100%}
+.family-btn{background:#f5f8fd;color:#2d539d;border:1px solid #ccdaea;padding:10px;border-radius:9px;font-size:12px;font-weight:700}
+.family-btn.main{background:#305ac8;color:white}
+.family-state{font-size:12px;font-weight:800;color:#305a72}
+.family-state.bad{color:#b93d3d}
+.family-head{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.family-note{font-size:12px;color:#67778c;margin-top:9px;min-height:15px}
+body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.signed-in) #resetWeek,body.loading-records #dayView input,body.loading-records #noteInput{pointer-events:none;opacity:.48}
+[hidden]{display:none!important}
+@media(max-width:620px){.family-fields{flex-direction:column;align-items:stretch}.family-fields input,.family-fields button{width:100%}}
+@media print{.family-panel{display:none!important}}
+</style></head>
 <body>
 <main class="site">
 <header class="hero">
   <div><div class="eyebrow">MY STUDY WEEK · 원래 일정 유지 · 시간 수정</div><h1>나의 일주일 공부 플래너 <span aria-hidden="true">✏️</span></h1><p>수매싱연산 중1-1을 40분으로 반영한 원래 일정입니다. 화요일과 일요일은 계획 시간이 길어요.<br>할 일을 완료하면 체크하고 실제 시간을 기록해 보자.</p></div>
   <div class="hero-actions"><button class="btn" id="pdfButton" title="인쇄 화면에서 PDF로 저장을 선택하세요"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M4 16v4h16v-4"/></svg>PDF로 저장</button><button class="btn primary" id="printButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4V9h16v9h-2"/><path d="M6 15h12v6H6z"/><path d="M17 12h1"/></svg>인쇄하기</button></div>
 </header>
-<div class="weekbar"><div class="weeklabel"><strong id="weekRange">이번 주</strong><div class="week-control"><button class="icon-btn" id="prevWeek" aria-label="이전 주">‹</button><button class="tiny-btn" id="currentWeek">이번 주</button><button class="icon-btn" id="nextWeek" aria-label="다음 주">›</button></div></div><span class="week-hint">월요일부터 일요일까지, 한 주씩 자동 저장</span></div>
+<section class="family-panel">
+<div class="family-head"><div><h2>☁️ 우리 가족 기록 공유</h2><p>같은 가족 계정으로 로그인하면 휴대폰과 PC에서 동일한 기록을 볼 수 있어요.</p></div><span id="syncState" class="family-state">연결 중…</span></div>
+<div class="family-fields" id="authForm" hidden><input id="familyEmail" type="email" autocomplete="email" placeholder="부모님 이메일" aria-label="이메일"><input id="familyPass" type="password" autocomplete="current-password" placeholder="비밀번호(6자 이상)" aria-label="비밀번호"><button id="signIn" class="family-btn main">로그인</button><button id="signUp" class="family-btn">가족 계정 만들기</button></div>
+<div class="family-fields" id="authConnected" hidden><strong id="accountName" style="font-size:12px"></strong><button id="syncNow" class="family-btn">기록 새로고침</button><button id="migrateOld" class="family-btn" hidden>이 기기의 이전 기록 가져오기</button><button id="signOut" class="family-btn">로그아웃</button></div>
+<div id="authNotice" class="family-note">로그인한 뒤 체크와 시간을 입력해 주세요.</div>
+</section><div class="weekbar"><div class="weeklabel"><strong id="weekRange">이번 주</strong><div class="week-control"><button class="icon-btn" id="prevWeek" aria-label="이전 주">‹</button><button class="tiny-btn" id="currentWeek">이번 주</button><button class="icon-btn" id="nextWeek" aria-label="다음 주">›</button></div></div><span class="week-hint">월요일부터 일요일까지, 한 주씩 자동 저장</span></div>
 <nav class="overview" id="dayTabs" aria-label="요일 선택"></nav>
 <div class="workspace">
   <section class="workcard" id="dayView" aria-live="polite"></section>
   <aside class="sidecol"><section class="sidecard" id="dayStats"></section><section class="sidecard"><h3 class="side-title">📝 오늘의 한마디</h3><textarea class="notearea" id="noteInput" placeholder="오늘 잘한 점, 내일 해 볼 일..." aria-label="오늘의 한마디"></textarea><p class="note-hint">자유롭게 적어도 좋아요. 내용은 자동 저장돼요.</p></section></aside>
 </div>
-<footer class="weekfoot"><span>🔒 기록은 현재 기기의 이 브라우저에 저장됩니다. 다른 기기로 자동 동기화되지 않아요.</span><button class="subtle-btn" id="resetWeek" title="현재 주의 체크와 시간 기록 지우기">↺ 이번 주 기록 초기화</button></footer>
+<footer class="weekfoot"><span>🔒 기록은 가족 계정에 저장되어 다른 기기와 동기화됩니다.</span><button class="subtle-btn" id="resetWeek" title="현재 주의 체크와 시간 기록 지우기">↺ 이번 주 기록 초기화</button></footer>
 </main>
 <section class="print-only" id="printView" aria-label="인쇄용 주간 계획표"></section>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.0/dist/umd/supabase.min.js"></script>
 <script>
 (function(){'use strict';
   const DAYS=[
@@ -56,7 +77,81 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;color
   const today=new Date();const todayKey=localISO(today);let selectedWeek=monday(today);let active=(today.getDay()+6)%7;let records={};
   const storageKey=()=>`my-study-plan-v3-corrected:${localISO(selectedWeek)}`;
   function load(){try{const s=localStorage.getItem(storageKey());const v=s?JSON.parse(s):{};records=v&&typeof v==='object'?v:{}}catch(e){records={}}}
-  function save(){try{localStorage.setItem(storageKey(),JSON.stringify(records))}catch(e){}}
+  function save(){if(!familyUser||cloudLoading)return;const week=weekKey(),value=JSON.parse(JSON.stringify(records));try{localStorage.setItem(storageKey(),JSON.stringify(value))}catch{};pending.set(week,value);lastEdit=Date.now();syncState('저장 중…');clearTimeout(saveTimer);saveTimer=setTimeout(()=>{void flush()},650)}
+
+  const db=window.supabase?.createClient('https://peuvvqrysncuadbttfmy.supabase.co','sb_publishable_7qrVYt7-ORb-WMvkKvfc-A_lEVZoY69',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+  let familyUser=null,cloudLoading=false,saveTimer=null,isSaving=false,lastEdit=0,sequence=0;
+  const pending=new Map(),weekKey=()=>localISO(selectedWeek);
+  const syncState=(v,bad=false)=>{$('syncState').textContent=v;$('syncState').classList.toggle('bad',bad)};
+  const notice=v=>{$('authNotice').textContent=v};
+  function showAuth(){document.body.classList.toggle('signed-in',!!familyUser);$('authForm').hidden=!!familyUser;$('authConnected').hidden=!familyUser;$('accountName').textContent=familyUser?.email||''}
+  function localWeek(week){try{return JSON.parse(localStorage.getItem('my-study-plan-v3-corrected:'+week)||'{}')}catch{return {}}}
+  async function flush(){
+    if(isSaving||!familyUser||!db||!pending.size)return;
+    isSaving=true;clearTimeout(saveTimer);
+    try{while(pending.size&&familyUser){
+      const [week,value]=pending.entries().next().value;pending.delete(week);
+      const {error}=await db.from('study_weeks').upsert({user_id:familyUser.id,week_start:week,records:value,updated_at:new Date().toISOString()},{onConflict:'user_id,week_start'});
+      if(error){pending.set(week,value);syncState('저장 실패',true);notice('인터넷 연결을 확인한 후 기록 새로고침을 눌러 주세요.');break}
+      syncState('✓ 저장 완료');notice('가족 기기에 기록이 공유됩니다.');
+    }}finally{isSaving=false}
+  }
+  async function pull(){
+    if(!familyUser||!db)return;
+    await flush();if(pending.size)return;
+    const week=weekKey(),id=++sequence;cloudLoading=true;document.body.classList.add('loading-records');syncState('불러오는 중…');
+    try{
+      const {data,error}=await db.from('study_weeks').select('records').eq('user_id',familyUser.id).eq('week_start',week).maybeSingle();
+      if(error)throw error;
+      if(id!==sequence||week!==weekKey()||!familyUser)return;
+      records=data?.records&&typeof data.records==='object'?data.records:{};
+      const old=localWeek(week);
+      $('migrateOld').hidden=!!data||!old||Object.keys(old).length===0;
+      notice($('migrateOld').hidden?'가족 기기와 동기화됩니다.':'기존 기록이 발견됐어요. 이 기기의 이전 기록 가져오기를 누르면 공유됩니다.');
+      syncState('✓ 동기화됨');render();
+    }catch(e){syncState('불러오기 실패',true);notice('서버에서 기록을 불러오지 못했습니다. 인터넷 연결 후 새로고침해 주세요.')}
+    finally{if(id===sequence){cloudLoading=false;document.body.classList.remove('loading-records')}}
+  }
+  async function enter(user){
+    if(familyUser?.id===user.id)return;
+    familyUser=user;showAuth();await pull();
+  }
+  function exit(){
+    sequence++;familyUser=null;cloudLoading=false;pending.clear();clearTimeout(saveTimer);document.body.classList.remove('loading-records');
+    records={};showAuth();render();syncState(db?'로그인 필요':'연결 오류',!db);notice('부모님 이메일과 비밀번호로 로그인해 주세요.');
+  }
+  async function authenticate(register){
+    if(!db){notice('로그인 프로그램을 불러오지 못했습니다. 인터넷 연결을 확인하세요.');return}
+    const email=$('familyEmail').value.trim(),password=$('familyPass').value;
+    if(!email||password.length<6){notice('이메일과 6자 이상의 비밀번호를 입력해 주세요.');return}
+    $('signIn').disabled=true;$('signUp').disabled=true;syncState('처리 중…');
+    try{
+      const {data,error}=register?await db.auth.signUp({email,password}):await db.auth.signInWithPassword({email,password});
+      if(error)throw error;
+      if(data?.session?.user)await enter(data.session.user);
+      else{notice('이메일 인증 링크를 확인한 다음 로그인해 주세요.');syncState('이메일 인증 필요')}
+    }catch(e){notice('계정 확인 실패: '+(e.message||'잠시 후 다시 시도하세요.'));syncState('로그인 실패',true)}
+    finally{$('signIn').disabled=false;$('signUp').disabled=false}
+  }
+  $('signIn').addEventListener('click',()=>void authenticate(false));
+  $('signUp').addEventListener('click',()=>void authenticate(true));
+  $('familyPass').addEventListener('keydown',e=>{if(e.key==='Enter')void authenticate(false)});
+  $('syncNow').addEventListener('click',async()=>{await flush();if(!pending.size)await pull()});
+  $('signOut').addEventListener('click',async()=>{await flush();if(pending.size){notice('저장되지 않은 기록이 있습니다. 인터넷 연결 후 다시 시도하세요.');return}await db.auth.signOut();exit()});
+  $('migrateOld').addEventListener('click',async()=>{
+    if(!familyUser||cloudLoading)return;
+    if(!confirm('이 기기의 기존 기록을 가족 공유 기록으로 올리시겠습니까?'))return;
+    records=localWeek(weekKey());render();save();await flush();if(!pending.size)$('migrateOld').hidden=true;
+  });
+  function changeWeek(){sequence++;records={};render();if(familyUser)void pull()}
+  function initAuth(){
+    showAuth();if(!db){exit();notice('Supabase 스크립트 연결 실패: 인터넷 연결을 확인하세요.');return}
+    db.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')exit();else if((event==='SIGNED_IN'||event==='INITIAL_SESSION')&&session?.user)void enter(session.user)});
+    db.auth.getSession().then(({data,error})=>{if(error)exit();else if(data?.session?.user)void enter(data.session.user);else exit()}).catch(()=>exit());
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden&&familyUser&&!cloudLoading&&Date.now()-lastEdit>2500)void pull()});
+    setInterval(()=>{if(familyUser&&!cloudLoading&&!isSaving&&!pending.size&&Date.now()-lastEdit>3000)void pull()},15000);
+  }
+
   const keyOf=(day,item)=>day+'-'+item;
   const rec=(day,item)=>records[keyOf(day,item)]||{};
   const goal=(day)=>DAYS[day].items.reduce((a,x)=>a+x[1],0);
@@ -85,17 +180,17 @@ html,body{margin:0!important;padding:0!important;background:#fff!important;color
     $('printView').innerHTML=`<div class="print-page">${header(1)}<div class="print-grid">${[0,1,2,3].map(printCard).join('')}</div><div class="print-footer">체크하고, 실제 걸린 시간도 적어 보자! ✏️</div></div><div class="print-page">${header(2)}<div class="print-grid">${[4,5,6].map(printCard).join('')}</div><section class="print-total"><h3>📌 이번 주 학습 기록</h3><p>계획: ${s.total}개 · 목표 시간 합계: ${hm(s.goal)} · 완료: ${s.completed}개 · 실제 기록: ${hm(s.actual)} (${s.logged}/${s.total}건 입력)</p></section><section class="print-reflect"><strong>🌟 이번 주 내가 잘한 점</strong><div class="print-lines"></div><div class="print-lines"></div></section><div class="print-footer">나는 오늘도 한 걸음 성장했어!</div></div>`;
   }
   function render(){ $('weekRange').textContent=dateRange();renderTabs();renderDay();renderStats();$('noteInput').value=records[`note-${active}`]||'';renderPrint()}
-  function shiftWeek(weeks){selectedWeek.setDate(selectedWeek.getDate()+weeks*7);load();active=(weeks===0?(today.getDay()+6)%7:0);render()}
+  function shiftWeek(weeks){if(pending.size)void flush();selectedWeek.setDate(selectedWeek.getDate()+weeks*7);active=(weeks===0?(today.getDay()+6)%7:0);changeWeek()}
   $('dayTabs').addEventListener('click',e=>{const el=e.target.closest('[data-day]');if(el){active=Number(el.dataset.day);render()}});
-  $('dayView').addEventListener('change',e=>{if(e.target.matches('[data-task]')){const i=Number(e.target.dataset.task),k=keyOf(active,i);records[k]={...rec(active,i),done:e.target.checked};save();render()}else if(e.target.matches('[data-actual]')){const i=Number(e.target.dataset.actual);records[keyOf(active,i)]={...rec(active,i),actual:e.target.value};save();render()}});
-  $('dayView').addEventListener('input',e=>{if(e.target.matches('[data-actual]')){const i=Number(e.target.dataset.actual);let v=e.target.value;if(v!==''&&(+v<0||+v>999))v=String(Math.min(999,Math.max(0,+v)));records[keyOf(active,i)]={...rec(active,i),actual:v};save();const cell=$('dayView').querySelector(`[data-diff="${i}"]`);if(cell)cell.innerHTML=comparison(rec(active,i),DAYS[active].items[i][1]);renderStats();renderPrint()}});
-  $('noteInput').addEventListener('input',e=>{records[`note-${active}`]=e.target.value;save();renderPrint()});
-  $('prevWeek').addEventListener('click',()=>shiftWeek(-1));$('nextWeek').addEventListener('click',()=>shiftWeek(1));$('currentWeek').addEventListener('click',()=>{selectedWeek=monday(new Date());active=(new Date().getDay()+6)%7;load();render()});
+  $('dayView').addEventListener('change',e=>{if(!familyUser||cloudLoading)return;if(e.target.matches('[data-task]')){const i=Number(e.target.dataset.task),k=keyOf(active,i);records[k]={...rec(active,i),done:e.target.checked};save();render()}else if(e.target.matches('[data-actual]')){const i=Number(e.target.dataset.actual);records[keyOf(active,i)]={...rec(active,i),actual:e.target.value};save();render()}});
+  $('dayView').addEventListener('input',e=>{if(!familyUser||cloudLoading)return;if(e.target.matches('[data-actual]')){const i=Number(e.target.dataset.actual);let v=e.target.value;if(v!==''&&(+v<0||+v>999))v=String(Math.min(999,Math.max(0,+v)));records[keyOf(active,i)]={...rec(active,i),actual:v};save();const cell=$('dayView').querySelector(`[data-diff="${i}"]`);if(cell)cell.innerHTML=comparison(rec(active,i),DAYS[active].items[i][1]);renderStats();renderPrint()}});
+  $('noteInput').addEventListener('input',e=>{if(!familyUser||cloudLoading)return;records[`note-${active}`]=e.target.value;save();renderPrint()});
+  $('prevWeek').addEventListener('click',()=>shiftWeek(-1));$('nextWeek').addEventListener('click',()=>shiftWeek(1));$('currentWeek').addEventListener('click',()=>{selectedWeek=monday(new Date());active=(new Date().getDay()+6)%7;changeWeek()});
   function doPrint(){renderPrint();window.print()}
   $('pdfButton').addEventListener('click',()=>{doPrint()});$('printButton').addEventListener('click',doPrint);
-  $('resetWeek').addEventListener('click',()=>{if(confirm(`${dateRange()}\n이 주의 체크·시간·메모 기록을 모두 지울까요?`)){records={};save();render()}});
+  $('resetWeek').addEventListener('click',()=>{if(!familyUser||cloudLoading)return;if(confirm(`${dateRange()}\n이 주의 체크·시간·메모 기록을 모두 지울까요?`)){records={};save();render()}});
   window.addEventListener('beforeprint',renderPrint);
-  load();render();
+  records={};render();initAuth();
 })();
 </script>
 </body>
