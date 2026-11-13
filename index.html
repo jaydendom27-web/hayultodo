@@ -58,6 +58,23 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
 .task-list .actual-input{max-width:100%}
 @media(max-width:620px){.task-list .c-actions{width:68px}.task-list .c-sort{width:29px}.task-list .tasklabel{font-size:12px}.task-list .sort-grip{min-width:26px}.task-add{margin:0 10px 14px}.task-list th,.task-list td{padding-left:3px;padding-right:3px}.task-list .move-btn{font-size:10px;padding:4px}}
 @media print{.task-add,.sort-grip{display:none!important}}
+@media(max-width:620px){
+.task-list,.task-list tbody{display:block;width:100%}
+.task-list thead{display:none}
+.task-list tbody tr{display:grid;grid-template-columns:27px minmax(0,1fr) 69px 31px;column-gap:6px;row-gap:6px;padding:12px 7px;border-bottom:1px solid #e8edf4;align-items:center}
+.task-list tbody td{display:block!important;border:0!important;padding:0!important;width:auto!important;min-width:0!important}
+.task-list tbody td:nth-child(1){grid-column:1;grid-row:1}
+.task-list tbody td:nth-child(2){grid-column:2;grid-row:1}
+.task-list tbody td:nth-child(3){grid-column:3;grid-row:1}
+.task-list tbody td:nth-child(4){grid-column:2;grid-row:2}
+.task-list tbody td:nth-child(5){grid-column:3/5;grid-row:2}
+.task-list tbody td:nth-child(6){grid-column:4;grid-row:1}
+.task-list tbody .sort-grip{width:31px;height:39px;font-size:25px}
+.task-list tbody .actual-input{width:70px;max-width:70px;height:33px}
+.task-list tbody td.actions{text-align:right;font-size:10px}
+.task-list tbody td.actions .move-btn{display:inline-block;min-height:27px;margin:3px 0 0 2px}
+.task-list tbody .tasklabel{font-size:13px;line-height:1.45;word-break:keep-all}
+}
 </style></head>
 <body>
 <main class="site">
@@ -402,7 +419,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
     return '<tr data-row-id="'+id+'"><td><input type="checkbox" class="check" '+checkAttr+' '+(task.done?'checked':'')+' aria-label="'+safe(task.title)+' 완료"></td>'+
       '<td>'+label+titleLabel+'</td><td><span class="goal">'+hm(task.goal)+'</span></td>'+
       '<td><input type="number" class="actual-input" min="0" max="999" step="1" inputmode="numeric" '+actualAttr+' value="'+safe(task.actual)+'" aria-label="'+safe(task.title)+' 실제 시간"><span class="unit">분</span></td>'+
-      '<td class="actions">'+comparison({actual:task.actual},task.goal)+actions+'</td>'+
+      '<td class="actions" '+(isRegular?'data-diff="'+task.index+'"':'')+'>'+comparison({actual:task.actual},task.goal)+actions+'</td>'+
       '<td class="sort-cell"><button type="button" class="sort-grip" data-grip="'+id+'" aria-label="'+safe(task.title)+' 순서 이동, 위아래 방향키로 조정" title="길게 누른 뒤 드래그 · 키보드 위아래 방향키">≡</button></td></tr>';
   }
   function newTaskForm(){
