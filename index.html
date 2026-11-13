@@ -37,7 +37,28 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
 [hidden]{display:none!important}
 @media(max-width:620px){.family-fields{flex-direction:column;align-items:stretch}.family-fields input,.family-fields button{width:100%}}
 @media print{.family-panel{display:none!important}}
-</style><style>.move-btn{display:inline-block;margin:4px 2px 0 0;padding:5px 7px;background:#eef3ff;border:1px solid #ccdaf4;border-radius:7px;color:#305ac8;font-size:11px;font-weight:700}.move-btn:disabled{opacity:.35}.carry-label{display:block;color:#a36928;font-size:11px;font-weight:750;margin:3px 0}.carry-heading{font-size:14px;margin:14px 0 9px;padding-top:13px;border-top:1px solid #e4e9f2}.carry-table{padding:0 23px 17px}@media print{.move-btn{display:none!important}}</style></head>
+</style><style>.move-btn{display:inline-block;margin:4px 2px 0 0;padding:5px 7px;background:#eef3ff;border:1px solid #ccdaf4;border-radius:7px;color:#305ac8;font-size:11px;font-weight:700}.move-btn:disabled{opacity:.35}.carry-label{display:block;color:#a36928;font-size:11px;font-weight:750;margin:3px 0}.carry-heading{font-size:14px;margin:14px 0 9px;padding-top:13px;border-top:1px solid #e4e9f2}.carry-table{padding:0 23px 17px}@media print{.move-btn{display:none!important}}</style><style>
+.sort-grip{display:inline-flex;align-items:center;justify-content:center;min-width:29px;min-height:36px;border:0;border-radius:8px;background:transparent;color:#8e9caf;font-size:23px;line-height:1;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.sort-grip:active{cursor:grabbing;background:#edf2ff;color:#305ac8}
+.sort-grip:focus-visible{outline:2px solid #305ac8}
+.sort-picked{opacity:.55;background:#e8f0ff}
+.sort-over{outline:2px dashed #305ac8;outline-offset:-2px}
+.task-list tbody tr{transition:background .15s}.task-list .c-sort{width:37px;text-align:right}
+.task-list .c-actions{width:87px}
+.task-list td.actions{vertical-align:middle}
+.task-list td.actions .move-btn{display:block;margin:3px auto 0}
+.task-list td.sort-cell{text-align:right}
+.task-add{margin:0 22px 18px;padding:13px;background:#f5f8fd;border:1px solid #e0e8f2;border-radius:12px}
+.task-add h3{font-size:13px;margin:0 0 8px}.task-add-fields{display:flex;gap:8px;flex-wrap:wrap}
+.task-add-fields input{min-height:37px;border:1px solid #cfdbeb;border-radius:8px;padding:8px;font-size:13px}
+.task-add-fields input[name=taskName]{flex:1;min-width:140px}
+.task-add-fields input[name=taskMinutes]{width:92px}
+.task-add-fields button{min-height:37px;padding:7px 12px;border:0;border-radius:8px;background:#305ac8;color:#fff;font-size:12px;font-weight:800}
+.task-type{font-size:10px;display:block;color:#b27437;font-weight:700;margin-top:3px}
+.task-list .actual-input{max-width:100%}
+@media(max-width:620px){.task-list .c-actions{width:68px}.task-list .c-sort{width:29px}.task-list .tasklabel{font-size:12px}.task-list .sort-grip{min-width:26px}.task-add{margin:0 10px 14px}.task-list th,.task-list td{padding-left:3px;padding-right:3px}.task-list .move-btn{font-size:10px;padding:4px}}
+@media print{.task-add,.sort-grip{display:none!important}}
+</style></head>
 <body>
 <main class="site">
 <header class="hero">
@@ -80,7 +101,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
   function save(){if(!familyUser||cloudLoading)return;const week=weekKey(),value=JSON.parse(JSON.stringify(records));try{localStorage.setItem(storageKey(),JSON.stringify(value))}catch{};pending.set(week,value);lastEdit=Date.now();syncState('저장 중…');clearTimeout(saveTimer);saveTimer=setTimeout(()=>{void flush()},650)}
 
   const db=window.supabase?.createClient('https://peuvvqrysncuadbttfmy.supabase.co','sb_publishable_7qrVYt7-ORb-WMvkKvfc-A_lEVZoY69',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  let familyUser=null,cloudLoading=false,saveTimer=null,isSaving=false,lastEdit=0,sequence=0;let movedTasks=[],moveBusy=false;
+  let familyUser=null,cloudLoading=false,saveTimer=null,isSaving=false,lastEdit=0,sequence=0;let movedTasks=[],moveBusy=false,customTasks=[],dayOrders=new Map(),orderBusy=false,dragging=null,dragHoldTimer=null,dragPos=null;
   const pending=new Map(),weekKey=()=>localISO(selectedWeek);
   const syncState=(v,bad=false)=>{$('syncState').textContent=v;$('syncState').classList.toggle('bad',bad)};
   const notice=v=>{$('authNotice').textContent=v};
@@ -106,6 +127,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
       if(id!==sequence||week!==weekKey()||!familyUser)return;
       records=data?.records&&typeof data.records==='object'?data.records:{};
       await fetchMoved();
+      await fetchCustomAndOrders();
       const old=localWeek(week);
       $('migrateOld').hidden=!!data||!old||Object.keys(old).length===0;
       notice($('migrateOld').hidden?'가족 기기와 동기화됩니다.':'기존 기록이 발견됐어요. 이 기기의 이전 기록 가져오기를 누르면 공유됩니다.');
@@ -119,7 +141,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
   }
   function exit(){
     sequence++;familyUser=null;cloudLoading=false;pending.clear();clearTimeout(saveTimer);document.body.classList.remove('loading-records');
-    records={};movedTasks=[];showAuth();render();syncState(db?'로그인 필요':'연결 오류',!db);notice('부모님 이메일과 비밀번호로 로그인해 주세요.');
+    records={};movedTasks=[];customTasks=[];dayOrders.clear();showAuth();render();syncState(db?'로그인 필요':'연결 오류',!db);notice('부모님 이메일과 비밀번호로 로그인해 주세요.');
   }
   async function authenticate(register){
     if(!db){notice('로그인 프로그램을 불러오지 못했습니다. 인터넷 연결을 확인하세요.');return}
@@ -144,7 +166,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
     if(!confirm('이 기기의 기존 기록을 가족 공유 기록으로 올리시겠습니까?'))return;
     records=localWeek(weekKey());render();save();await flush();if(!pending.size)$('migrateOld').hidden=true;
   });
-  function changeWeek(){sequence++;records={};movedTasks=[];render();if(familyUser)void pull()}
+  function changeWeek(){sequence++;records={};movedTasks=[];customTasks=[];dayOrders.clear();render();if(familyUser)void pull()}
   function initAuth(){
     showAuth();if(!db){exit();notice('Supabase 스크립트 연결 실패: 인터넷 연결을 확인하세요.');return}
     db.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')exit();else if((event==='SIGNED_IN'||event==='INITIAL_SESSION')&&session?.user)void enter(session.user)});
@@ -224,6 +246,172 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
     if(el.matches('[data-moved-actual]'))void changeMoved(el.dataset.source,Number(el.dataset.index),{actual_minutes:el.value===''?null:Math.min(999,Math.max(0,Number(el.value)))});
   });
 
+
+  async function fetchCustomAndOrders(){
+    if(!familyUser||!db)return;
+    const first=weekKey(),last=localISO(dateAt(6));
+    const [tasks,orders]=await Promise.all([
+      db.from('study_custom_tasks').select('id,original_date,scheduled_date,title,goal_minutes,done,actual_minutes').eq('user_id',familyUser.id)
+        .or('and(scheduled_date.gte.'+first+',scheduled_date.lte.'+last+'),and(original_date.gte.'+first+',original_date.lte.'+last+')'),
+      db.from('study_day_orders').select('day_date,order_ids').eq('user_id',familyUser.id).gte('day_date',first).lte('day_date',last)
+    ]);
+    if(tasks.error)throw tasks.error;if(orders.error)throw orders.error;
+    customTasks=tasks.data||[];
+    dayOrders=new Map((orders.data||[]).map(row=>[row.day_date,Array.isArray(row.order_ids)?row.order_ids:[]]));
+  }
+  // Stable IDs preserve the link between saved checks and the on-screen order.
+  function tasksOn(day){
+    const date=dateOf(day);
+    const regular=DAYS[day].items.flatMap((t,i)=>movingFrom(day,i)?[]:[{
+      id:'r:'+date+':'+i,kind:'regular',index:i,title:t[0],goal:t[1],
+      done:!!rec(day,i).done,actual:rec(day,i).actual??'',source_date:date
+    }]);
+    const carried=movingTo(day).map(m=>({id:'m:'+m.source_date+':'+m.source_index,kind:'moved',
+      title:m.task_title,goal:m.goal_minutes,done:!!m.done,actual:m.actual_minutes??'',
+      source_date:m.source_date,index:m.source_index}));
+    const custom=customTasks.filter(t=>t.scheduled_date===date).map(t=>({
+      id:'c:'+t.id,kind:'custom',uuid:t.id,title:t.title,goal:t.goal_minutes,
+      done:!!t.done,actual:t.actual_minutes??'',source_date:t.original_date
+    }));
+    const all=[...regular,...carried,...custom],rank=new Map((dayOrders.get(date)||[]).map((id,i)=>[id,i]));
+    return all.sort((a,b)=>{
+      const x=rank.has(a.id)?rank.get(a.id):Number.MAX_SAFE_INTEGER;
+      const y=rank.has(b.id)?rank.get(b.id):Number.MAX_SAFE_INTEGER;
+      return x-y;
+    });
+  }
+  async function addCustomTask(){
+    if(!familyUser||cloudLoading||moveBusy)return;
+    const name=$('newTaskName').value.trim();
+    const minutes=Number($('newTaskMinutes').value);
+    if(!name||name.length>150||!Number.isInteger(minutes)||minutes<1||minutes>999){
+      notice('할 일 이름(150자 이내)과 목표시간(1~999분)을 정확히 입력해 주세요.');return;
+    }
+    const date=dateOf(active);$('addCustomButton').disabled=true;syncState('추가 중…');
+    try{
+      const {data,error}=await db.from('study_custom_tasks').insert({
+        user_id:familyUser.id,original_date:date,scheduled_date:date,title:name,goal_minutes:minutes
+      }).select('id,original_date,scheduled_date,title,goal_minutes,done,actual_minutes').single();
+      if(error)throw error;
+      customTasks.push(data);lastEdit=Date.now();render();syncState('✓ 할 일 추가됨');
+      notice('새 할 일을 추가했습니다. 순서도 변경할 수 있습니다.');
+    }catch(e){syncState('추가 실패',true);notice('할 일을 추가하지 못했습니다: '+e.message)}
+    finally{const b=$('addCustomButton');if(b)b.disabled=false}
+  }
+  async function editCustomTask(id,change){
+    if(!familyUser||cloudLoading)return;
+    const old=customTasks.find(t=>t.id===id);if(!old)return;
+    syncState('저장 중…');
+    const {error}=await db.from('study_custom_tasks').update(change).eq('user_id',familyUser.id).eq('id',id);
+    if(error){syncState('저장 실패',true);notice(error.message);return}
+    customTasks=customTasks.map(t=>t.id===id?{...t,...change}:t);lastEdit=Date.now();
+    render();syncState('✓ 저장 완료');
+  }
+  async function removeCustomTask(id){
+    const target=customTasks.find(t=>t.id===id);if(!target||!confirm('「'+target.title+'」을 삭제할까요?'))return;
+    const {error}=await db.from('study_custom_tasks').delete().eq('user_id',familyUser.id).eq('id',id);
+    if(error){syncState('삭제 실패',true);notice(error.message);return}
+    customTasks=customTasks.filter(t=>t.id!==id);lastEdit=Date.now();render();syncState('✓ 삭제 완료');
+  }
+  async function moveCustomTomorrow(id){
+    const t=customTasks.find(x=>x.id===id);
+    if(!t||t.done||!confirm('「'+t.title+'」을 내일로 미룰까요?'))return;
+    await editCustomTask(id,{scheduled_date:isoNext(t.scheduled_date)});
+  }
+  async function saveTaskOrder(day,ids){
+    if(!familyUser||cloudLoading||orderBusy)return;
+    const date=dateOf(day),old=dayOrders.get(date)||[];
+    dayOrders.set(date,ids);render();orderBusy=true;syncState('순서 저장 중…');
+    try{
+      const {error}=await db.from('study_day_orders').upsert({
+        user_id:familyUser.id,day_date:date,order_ids:ids,updated_at:new Date().toISOString()
+      },{onConflict:'user_id,day_date'});
+      if(error)throw error;lastEdit=Date.now();syncState('✓ 순서 저장 완료');
+    }catch(e){dayOrders.set(date,old);render();syncState('순서 저장 실패',true);notice(e.message)}
+    finally{orderBusy=false}
+  }
+  function reorderIds(dragId,overId){
+    if(!dragId||!overId||dragId===overId)return;
+    const ids=tasksOn(active).map(t=>t.id),start=ids.indexOf(dragId),finish=ids.indexOf(overId);
+    if(start<0||finish<0)return;
+    ids.splice(start,1);ids.splice(finish,0,dragId);
+    void saveTaskOrder(active,ids);
+  }
+  let dragStart=null,armedDrag=false;
+  // Press-and-hold 220 ms on touch; a normal grab starts immediately with a mouse.
+  $('dayView').addEventListener('pointerdown',e=>{
+    const grip=e.target.closest('[data-grip]');if(!grip||!familyUser||cloudLoading)return;
+    const pointerId=e.pointerId,startY=e.clientY,startX=e.clientX;
+    dragStart={id:grip.dataset.grip,pointerId,startX,startY,grip};
+    if(e.pointerType==='mouse'){armedDrag=true;dragging=dragStart;grip.setPointerCapture?.(pointerId);e.preventDefault()}
+    else{armedDrag=false;clearTimeout(dragHoldTimer);dragHoldTimer=setTimeout(()=>{
+      if(dragStart?.pointerId===pointerId){armedDrag=true;dragging=dragStart;grip.setPointerCapture?.(pointerId);grip.closest('tr')?.classList.add('sort-picked');}
+    },220)}
+  });
+  $('dayView').addEventListener('pointermove',e=>{
+    if(!dragStart||e.pointerId!==dragStart.pointerId)return;
+    if(!armedDrag){
+      if(Math.abs(e.clientY-dragStart.startY)>9||Math.abs(e.clientX-dragStart.startX)>9){clearTimeout(dragHoldTimer);dragStart=null}
+      return;
+    }
+    e.preventDefault();
+    document.querySelectorAll('.sort-over').forEach(x=>x.classList.remove('sort-over'));
+    const over=document.elementFromPoint(e.clientX,e.clientY)?.closest('tr[data-row-id]');
+    if(over&&over.dataset.rowId!==dragging.id)over.classList.add('sort-over');
+  });
+  function finishDrag(e){
+    clearTimeout(dragHoldTimer);
+    if(!dragStart||e.pointerId!==dragStart.pointerId)return;
+    const from=dragging?.id,over=document.elementFromPoint(e.clientX,e.clientY)?.closest('tr[data-row-id]')?.dataset.rowId;
+    document.querySelectorAll('.sort-picked,.sort-over').forEach(x=>x.classList.remove('sort-picked','sort-over'));
+    dragStart=null;dragging=null;armedDrag=false;
+    if(from&&over)reorderIds(from,over);
+  }
+  $('dayView').addEventListener('pointerup',finishDrag);
+  $('dayView').addEventListener('pointercancel',e=>{clearTimeout(dragHoldTimer);dragStart=null;dragging=null;armedDrag=false;document.querySelectorAll('.sort-picked,.sort-over').forEach(x=>x.classList.remove('sort-picked','sort-over'))});
+  $('dayView').addEventListener('keydown',e=>{
+    const grip=e.target.closest('[data-grip]');if(!grip||!['ArrowUp','ArrowDown'].includes(e.key))return;
+    e.preventDefault();const ids=tasksOn(active).map(x=>x.id),i=ids.indexOf(grip.dataset.grip),to=i+(e.key==='ArrowUp'?-1:1);
+    if(to<0||to>=ids.length)return;
+    const neighbour=ids[to];ids.splice(i,1);ids.splice(to,0,grip.dataset.grip);
+    void saveTaskOrder(active,ids);
+    requestAnimationFrame(()=>{const g=[...$('dayView').querySelectorAll('[data-grip]')].find(g=>g.dataset.grip===grip.dataset.grip);g?.focus()});
+  });
+  $('dayView').addEventListener('submit',e=>{if(e.target.id==='addTaskForm'){e.preventDefault();void addCustomTask()}});
+  $('dayView').addEventListener('click',e=>{
+    const el=e.target.closest('[data-custom-next],[data-custom-delete]');if(!el)return;
+    if(el.hasAttribute('data-custom-next'))void moveCustomTomorrow(el.dataset.customNext);
+    else void removeCustomTask(el.dataset.customDelete);
+  });
+  $('dayView').addEventListener('change',e=>{
+    const el=e.target;
+    if(el.matches('[data-custom-done]'))void editCustomTask(el.dataset.customDone,{done:el.checked});
+    else if(el.matches('[data-custom-actual]'))void editCustomTask(el.dataset.customActual,{actual_minutes:el.value===''?null:Math.max(0,Math.min(999,Number(el.value)))});
+  });
+  function allRow(task){
+    const id=safe(task.id),isRegular=task.kind==='regular',isMoved=task.kind==='moved',isCustom=task.kind==='custom';
+    const sourceAttr='data-source="'+safe(task.source_date)+'" data-index="'+task.index+'"';
+    const titleLabel=isMoved?'<span class="task-type">↪ '+safe(task.source_date)+'에서 이동</span>':isCustom?'<span class="task-type">직접 추가</span>':'';
+    const checkAttr=isRegular?'data-task="'+task.index+'"':isMoved?'data-moved-done '+sourceAttr:'data-custom-done="'+task.uuid+'"';
+    const actualAttr=isRegular?'data-actual="'+task.index+'"':isMoved?'data-moved-actual '+sourceAttr:'data-custom-actual="'+task.uuid+'"';
+    let actions='';
+    if(isRegular)actions='<button class="move-btn" data-defer="'+task.index+'" '+(task.done?'disabled':'')+'>내일로 →</button>';
+    if(isMoved)actions='<button class="move-btn" data-moved-next '+sourceAttr+' '+(task.done?'disabled':'')+'>내일로 →</button><button class="move-btn" data-moved-undo '+sourceAttr+'>원래대로</button>';
+    if(isCustom)actions='<button class="move-btn" data-custom-next="'+task.uuid+'" '+(task.done?'disabled':'')+'>내일로 →</button><button class="move-btn" data-custom-delete="'+task.uuid+'">삭제</button>';
+    const label=isRegular?'<label class="tasklabel '+(task.done?'is-done':'')+'" data-label-task="'+task.index+'">'+safe(task.title)+'</label>':'<span class="tasklabel '+(task.done?'is-done':'')+'">'+safe(task.title)+'</span>';
+    return '<tr data-row-id="'+id+'"><td><input type="checkbox" class="check" '+checkAttr+' '+(task.done?'checked':'')+' aria-label="'+safe(task.title)+' 완료"></td>'+
+      '<td>'+label+titleLabel+'</td><td><span class="goal">'+hm(task.goal)+'</span></td>'+
+      '<td><input type="number" class="actual-input" min="0" max="999" step="1" inputmode="numeric" '+actualAttr+' value="'+safe(task.actual)+'" aria-label="'+safe(task.title)+' 실제 시간"><span class="unit">분</span></td>'+
+      '<td class="actions">'+comparison({actual:task.actual},task.goal)+actions+'</td>'+
+      '<td class="sort-cell"><button type="button" class="sort-grip" data-grip="'+id+'" aria-label="'+safe(task.title)+' 순서 이동, 위아래 방향키로 조정" title="길게 누른 뒤 드래그 · 키보드 위아래 방향키">≡</button></td></tr>';
+  }
+  function newTaskForm(){
+    return '<form id="addTaskForm" class="task-add"><h3>＋ 이 날짜에 할 일 추가</h3><div class="task-add-fields">'+
+    '<input name="taskName" id="newTaskName" required maxlength="150" placeholder="새로운 할 일" aria-label="새로운 할 일">'+
+    '<input name="taskMinutes" id="newTaskMinutes" type="number" inputmode="numeric" required min="1" max="999" placeholder="목표 분" aria-label="목표 시간 분">'+
+    '<button id="addCustomButton" type="submit">+ 추가</button></div></form>';
+  }
+
   const keyOf=(day,item)=>day+'-'+item;
   const rec=(day,item)=>records[keyOf(day,item)]||{};
   const goal=(day)=>DAYS[day].items.reduce((a,x)=>a+x[1],0);
@@ -231,22 +419,35 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
   const compact=(min)=>{const h=Math.floor(min/60),m=min%60;return h?(h+'시간'+(m?' '+m+'분':'')):m+'분'};
   const dateAt=(offset)=>{const d=new Date(selectedWeek);d.setDate(d.getDate()+offset);return d};
   const dateRange=()=>{const a=dateAt(0),b=dateAt(6);return `${a.getFullYear()}. ${a.getMonth()+1}. ${a.getDate()} — ${b.getMonth()+1}. ${b.getDate()}`};
-  function stat(day){let completed=0,logged=0,actual=0,total=0,planned=0;DAYS[day].items.forEach((task,i)=>{if(movingFrom(day,i))return;total++;planned+=task[1];const r=rec(day,i);if(r.done)completed++;if(r.actual!==undefined&&r.actual!==''&&Number.isFinite(+r.actual)){logged++;actual+=+r.actual}});movingTo(day).forEach(m=>{total++;planned+=m.goal_minutes;if(m.done)completed++;if(m.actual_minutes!=null){logged++;actual+=m.actual_minutes}});return{completed,logged,actual,total,goal:planned}}
+  function stat(day){const ts=tasksOn(day);let completed=0,logged=0,actual=0,planned=0;for(const t of ts){planned+=t.goal;if(t.done)completed++;if(t.actual!==''&&t.actual!=null&&Number.isFinite(Number(t.actual))){logged++;actual+=Number(t.actual)}}return{completed,logged,actual,total:ts.length,goal:planned}}
   function weekStat(){return DAYS.reduce((a,_,d)=>{const s=stat(d);a.completed+=s.completed;a.total+=s.total;a.actual+=s.actual;a.goal+=s.goal;a.logged+=s.logged;return a},{completed:0,total:0,actual:0,goal:0,logged:0})}
   const pct=(a,b)=>b?Math.round(a/b*100):100;
   function renderTabs(){const html=DAYS.map((d,i)=>{const s=stat(i);const current=localISO(dateAt(i))===todayKey;return `<button class="daytab ${i===active?'active':''} ${current?'today':''}" data-day="${i}" aria-pressed="${i===active}" aria-label="${d.name}, ${s.completed}개 완료"><div class="daytop"><strong>${d.short}</strong><span>${dateAt(i).getMonth()+1}/${dateAt(i).getDate()}</span></div>${s.total?`<div class="dayratio"><b>${s.completed}</b> / ${s.total} 완료</div><div class="daygoal">목표 ${hm(s.goal)}</div><div class="progress"><span style="width:${pct(s.completed,s.total)}%"></span></div>`:`<div class="dayrest">☁️ 쉬는 날</div><div class="progress"><span style="width:100%;background:#9acbbe"></span></div>`}</button>`}).join('');$('dayTabs').innerHTML=html}
   function comparison(r,goal){if(r.actual===undefined||r.actual==='')return `<span class="diff">—</span>`;const diff=Number(r.actual)-goal;return diff===0?`<span class="diff">목표와 동일</span>`:diff<0?`<span class="diff less">${Math.abs(diff)}분 단축</span>`:`<span class="diff more">${diff}분 추가</span>`}
-  function renderDay(){const d=DAYS[active],s=stat(active);const date=dateAt(active);const sub=`${date.getMonth()+1}월 ${date.getDate()}일 · 목표 ${hm(s.goal)}`;
-    if(!s.total){$('dayView').innerHTML=`<div class="cardhead"><div><h2 class="day-title">${d.name}</h2><div class="day-subtitle">${date.getMonth()+1}월 ${date.getDate()}일 · 재충전의 날</div></div><span class="completion">휴식 DAY</span></div><div class="rest-screen"><div class="rest-emoji">🌿</div><strong>오늘은 쉬어 가는 날!</strong><p>이번 주도 열심히 달려왔어.<br>충분히 쉬고, 좋아하는 일을 즐겨 보자.</p></div>${carrySection(active)}`;return}
-    const rows=d.items.map((t,i)=>{if(movingFrom(active,i))return '';const r=rec(active,i);const raw=r.actual!==undefined?r.actual:'';return `<tr><td><input class="check" aria-label="${safe(t[0])} 완료" type="checkbox" data-task="${i}" ${r.done?'checked':''}></td><td><label class="tasklabel ${r.done?'is-done':''}" data-label-task="${i}">${safe(t[0])}</label></td><td><span class="goal">${hm(t[1])}</span></td><td><input class="actual-input" aria-label="${safe(t[0])} 실제 소요 분" data-actual="${i}" type="number" min="0" max="999" step="1" inputmode="numeric" placeholder="0" value="${safe(raw)}"><span class="unit">분</span></td><td class="delta" data-diff="${i}">${comparison(r,t[1])}<button class="move-btn" data-defer="${i}" ${r.done?'disabled':''}>내일로 →</button></td></tr>`}).join('');
-    $('dayView').innerHTML=`<div class="cardhead"><div><h2 class="day-title">${d.name}의 할 일</h2><div class="day-subtitle">${sub}</div></div><span class="completion">${s.completed} / ${s.total} 완료</span></div><div class="table-wrap"><table><thead><tr><th class="c-done">완료</th><th>할 일</th><th class="c-goal">목표 시간</th><th class="c-actual">실제 시간</th><th class="c-diff">목표 대비</th></tr></thead><tbody>${rows}</tbody></table></div>${carrySection(active)}<p class="table-tip">💡 실제 시간은 분 단위로 입력해. 예) 1시간 10분 → 70 입력</p>`;
-    $('dayView').querySelectorAll('[data-label-task]').forEach(el=>el.addEventListener('click',()=>{const cb=$('dayView').querySelector(`[data-task="${el.dataset.labelTask}"]`);cb.click()}));
+  function renderDay(){
+    const d=DAYS[active],s=stat(active),date=dateAt(active),sub=date.getMonth()+1+'월 '+date.getDate()+'일 · 목표 '+hm(s.goal);
+    const tasks=tasksOn(active),rows=tasks.map(allRow).join('');
+    const content=tasks.length?'<div class="table-wrap"><table class="task-list"><thead><tr><th class="c-done">완료</th><th>할 일</th><th class="c-goal">목표</th><th class="c-actual">실제</th><th class="c-actions">목표 대비 / 이동</th><th class="c-sort">순서</th></tr></thead><tbody>'+rows+'</tbody></table></div>':
+      '<div class="rest-screen"><div class="rest-emoji">🌿</div><strong>오늘은 쉬어 가는 날!</strong><p>할 일을 추가할 수도 있어.</p></div>';
+    $('dayView').innerHTML='<div class="cardhead"><div><h2 class="day-title">'+d.name+'의 할 일</h2><div class="day-subtitle">'+sub+'</div></div><span class="completion">'+s.completed+' / '+s.total+' 완료</span></div>'+content+
+      newTaskForm()+'<p class="table-tip">≡ 손잡이를 길게 눌러 순서를 바꿔. 바뀐 순서는 가족 계정에 저장돼.</p>';
+    $('dayView').querySelectorAll('[data-label-task]').forEach(el=>el.addEventListener('click',()=>{
+      $('dayView').querySelector('[data-task="'+el.dataset.labelTask+'"]')?.click();
+    }));
   }
   function renderStats(){const s=stat(active),w=weekStat(),p=pct(s.completed,s.total);const displayP=s.total?p:100;
     $('dayStats').innerHTML=`<h3 class="side-title">📊 오늘의 기록</h3><div class="circlearea"><div class="donut" style="background:conic-gradient(var(--mint) ${displayP}%,#e9eff4 0)"><div class="donut-core"><b>${s.total?p:100}%</b><span>${s.total?'완료율':'휴식'}</span></div></div><div class="donut-copy"><b>${s.total?s.completed+' / '+s.total+'개':'충전 완료'}</b><span>${s.total?'하나씩 완료해 보자!':'쉬는 것도 중요한 계획!'}</span></div></div><div class="statrow"><span>오늘 목표 시간</span><b>${hm(s.goal)}</b></div><div class="statrow"><span>오늘 실제 기록</span><b>${hm(s.actual)} <span class="minor">(${s.logged}/${s.total}건)</span></b></div><div class="statrow"><span>이번 주 완료</span><b>${w.completed} / ${w.total}개</b></div><div class="statrow"><span>이번 주 목표 총합</span><b>${hm(w.goal)}</b></div>`;
   }
-  function printCard(day){const d=DAYS[day],s=stat(day);const rows=d.items.map((t,i)=>{if(movingFrom(day,i))return '';const r=rec(day,i),val=r.actual===undefined||r.actual===''?'______':String(r.actual)+'분';return `<tr><td><span class="print-check ${r.done?'checked':''}">${r.done?'✓':''}</span></td><td>${safe(t[0])}</td><td>${hm(t[1])}</td><td>${safe(val)}</td></tr>`}).join('')+movingTo(day).map(m=>`<tr><td>${m.done?'✓':'□'}</td><td>${safe(m.task_title)} (이월)</td><td>${hm(m.goal_minutes)}</td><td>${m.actual_minutes==null?'______':m.actual_minutes+'분'}</td></tr>`).join('');const note=records[`note-${day}`]||'';
-    return `<div class="print-card"><div class="print-cardheader"><strong>${d.name} <span style="font-size:9pt">${dateAt(day).getMonth()+1}/${dateAt(day).getDate()}</span></strong><span>${s.total?'목표 '+hm(s.goal)+' · '+s.completed+'/'+s.total+' 완료':'휴식'}</span></div>${s.total?`<table class="print-table"><colgroup><col style="width:6%"><col style="width:51%"><col style="width:21%"><col style="width:22%"></colgroup><thead><tr><th>✓</th><th>할 일</th><th>목표</th><th>실제(분)</th></tr></thead><tbody>${rows}</tbody></table>`:`<div class="print-rest">☁️ 오늘은 편안히 쉬는 날!</div>`}<div class="print-note">한마디: ${safe(note)||'_________________________________________________'}</div></div>`;
+  function printCard(day){
+    const d=DAYS[day],s=stat(day),rows=tasksOn(day).map(t=>{
+      const val=t.actual===''||t.actual==null?'______':safe(t.actual)+'분';
+      const suffix=t.kind==='moved'?' (이월)':t.kind==='custom'?' (추가)':'';
+      return '<tr><td><span class="print-check '+(t.done?'checked':'')+'">'+(t.done?'✓':'')+'</span></td><td>'+safe(t.title)+suffix+'</td><td>'+hm(t.goal)+'</td><td>'+val+'</td></tr>';
+    }).join('');
+    const note=records['note-'+day]||'';
+    return '<div class="print-card"><div class="print-cardheader"><strong>'+d.name+' <span style="font-size:9pt">'+(dateAt(day).getMonth()+1)+'/'+dateAt(day).getDate()+'</span></strong><span>'+(s.total?'목표 '+hm(s.goal)+' · '+s.completed+'/'+s.total+' 완료':'휴식')+'</span></div>'+
+      (s.total?'<table class="print-table"><colgroup><col style="width:6%"><col style="width:51%"><col style="width:21%"><col style="width:22%"></colgroup><thead><tr><th>✓</th><th>할 일</th><th>목표</th><th>실제(분)</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="print-rest">☁️ 편안히 쉬는 날!</div>')+
+      '<div class="print-note">한마디: '+(safe(note)||'_________________________________________________')+'</div></div>';
   }
   function renderPrint(){const s=weekStat();const header=(page)=>`<header class="print-head"><div><div class="print-eyebrow">원래 일정 유지 · 시간 수정 · WEEKLY CHECKLIST</div><h1>나의 일주일 공부 플래너</h1><div class="print-date">${dateRange()}</div></div><div class="print-meta">${page} / 2 · 완료 ${s.completed}/${s.total}개</div></header>`;
     $('printView').innerHTML=`<div class="print-page">${header(1)}<div class="print-grid">${[0,1,2,3].map(printCard).join('')}</div><div class="print-footer">체크하고, 실제 걸린 시간도 적어 보자! ✏️</div></div><div class="print-page">${header(2)}<div class="print-grid">${[4,5,6].map(printCard).join('')}</div><section class="print-total"><h3>📌 이번 주 학습 기록</h3><p>계획: ${s.total}개 · 목표 시간 합계: ${hm(s.goal)} · 완료: ${s.completed}개 · 실제 기록: ${hm(s.actual)} (${s.logged}/${s.total}건 입력)</p></section><section class="print-reflect"><strong>🌟 이번 주 내가 잘한 점</strong><div class="print-lines"></div><div class="print-lines"></div></section><div class="print-footer">나는 오늘도 한 걸음 성장했어!</div></div>`;
