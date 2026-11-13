@@ -37,7 +37,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
 [hidden]{display:none!important}
 @media(max-width:620px){.family-fields{flex-direction:column;align-items:stretch}.family-fields input,.family-fields button{width:100%}}
 @media print{.family-panel{display:none!important}}
-</style></head>
+</style><style>.move-btn{display:inline-block;margin:4px 2px 0 0;padding:5px 7px;background:#eef3ff;border:1px solid #ccdaf4;border-radius:7px;color:#305ac8;font-size:11px;font-weight:700}.move-btn:disabled{opacity:.35}.carry-label{display:block;color:#a36928;font-size:11px;font-weight:750;margin:3px 0}.carry-heading{font-size:14px;margin:14px 0 9px;padding-top:13px;border-top:1px solid #e4e9f2}.carry-table{padding:0 23px 17px}@media print{.move-btn{display:none!important}}</style></head>
 <body>
 <main class="site">
 <header class="hero">
@@ -80,7 +80,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
   function save(){if(!familyUser||cloudLoading)return;const week=weekKey(),value=JSON.parse(JSON.stringify(records));try{localStorage.setItem(storageKey(),JSON.stringify(value))}catch{};pending.set(week,value);lastEdit=Date.now();syncState('저장 중…');clearTimeout(saveTimer);saveTimer=setTimeout(()=>{void flush()},650)}
 
   const db=window.supabase?.createClient('https://peuvvqrysncuadbttfmy.supabase.co','sb_publishable_7qrVYt7-ORb-WMvkKvfc-A_lEVZoY69',{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-  let familyUser=null,cloudLoading=false,saveTimer=null,isSaving=false,lastEdit=0,sequence=0;
+  let familyUser=null,cloudLoading=false,saveTimer=null,isSaving=false,lastEdit=0,sequence=0;let movedTasks=[],moveBusy=false;
   const pending=new Map(),weekKey=()=>localISO(selectedWeek);
   const syncState=(v,bad=false)=>{$('syncState').textContent=v;$('syncState').classList.toggle('bad',bad)};
   const notice=v=>{$('authNotice').textContent=v};
@@ -105,6 +105,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
       if(error)throw error;
       if(id!==sequence||week!==weekKey()||!familyUser)return;
       records=data?.records&&typeof data.records==='object'?data.records:{};
+      await fetchMoved();
       const old=localWeek(week);
       $('migrateOld').hidden=!!data||!old||Object.keys(old).length===0;
       notice($('migrateOld').hidden?'가족 기기와 동기화됩니다.':'기존 기록이 발견됐어요. 이 기기의 이전 기록 가져오기를 누르면 공유됩니다.');
@@ -118,7 +119,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
   }
   function exit(){
     sequence++;familyUser=null;cloudLoading=false;pending.clear();clearTimeout(saveTimer);document.body.classList.remove('loading-records');
-    records={};showAuth();render();syncState(db?'로그인 필요':'연결 오류',!db);notice('부모님 이메일과 비밀번호로 로그인해 주세요.');
+    records={};movedTasks=[];showAuth();render();syncState(db?'로그인 필요':'연결 오류',!db);notice('부모님 이메일과 비밀번호로 로그인해 주세요.');
   }
   async function authenticate(register){
     if(!db){notice('로그인 프로그램을 불러오지 못했습니다. 인터넷 연결을 확인하세요.');return}
@@ -143,7 +144,7 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
     if(!confirm('이 기기의 기존 기록을 가족 공유 기록으로 올리시겠습니까?'))return;
     records=localWeek(weekKey());render();save();await flush();if(!pending.size)$('migrateOld').hidden=true;
   });
-  function changeWeek(){sequence++;records={};render();if(familyUser)void pull()}
+  function changeWeek(){sequence++;records={};movedTasks=[];render();if(familyUser)void pull()}
   function initAuth(){
     showAuth();if(!db){exit();notice('Supabase 스크립트 연결 실패: 인터넷 연결을 확인하세요.');return}
     db.auth.onAuthStateChange((event,session)=>{if(event==='SIGNED_OUT')exit();else if((event==='SIGNED_IN'||event==='INITIAL_SESSION')&&session?.user)void enter(session.user)});
@@ -152,6 +153,77 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
     setInterval(()=>{if(familyUser&&!cloudLoading&&!isSaving&&!pending.size&&Date.now()-lastEdit>3000)void pull()},15000);
   }
 
+
+  const isoNext=(s)=>{const d=new Date(s+'T12:00:00');d.setDate(d.getDate()+1);return localISO(d)};
+  const dateOf=(day)=>localISO(dateAt(day));
+  const moveId=(m)=>m.source_date+'/'+m.source_index;
+  const movingFrom=(day,i)=>movedTasks.some(m=>m.source_date===dateOf(day)&&m.source_index===i);
+  const movingTo=(day)=>movedTasks.filter(m=>m.target_date===dateOf(day));
+  async function fetchMoved(){
+    const first=weekKey(),last=localISO(dateAt(6));
+    const {data,error}=await db.from('study_task_moves').select('source_date,source_index,target_date,task_title,goal_minutes,done,actual_minutes')
+      .eq('user_id',familyUser.id).or('and(target_date.gte.'+first+',target_date.lte.'+last+'),and(source_date.gte.'+first+',source_date.lte.'+last+')');
+    if(error)throw error;movedTasks=data||[];
+  }
+  function setMove(m){movedTasks=movedTasks.filter(x=>moveId(x)!==moveId(m));movedTasks.push(m)}
+  async function deferTask(i){
+    if(!familyUser||cloudLoading||moveBusy||movingFrom(active,i))return;
+    const t=DAYS[active].items[i],r=rec(active,i);
+    if(!t||r.done)return;
+    if(!confirm('「'+t[0]+'」을 내일로 옮길까요?'))return;
+    moveBusy=true;syncState('이동 중…');
+    try{
+      await flush();if(pending.size)throw Error('다른 기록 저장을 먼저 완료해 주세요.');
+      const data={user_id:familyUser.id,source_date:dateOf(active),source_index:i,target_date:isoNext(dateOf(active)),task_title:t[0],goal_minutes:t[1],done:false,actual_minutes:r.actual===''||r.actual===undefined?null:Number(r.actual)};
+      const {error}=await db.from('study_task_moves').upsert(data,{onConflict:'user_id,source_date,source_index'});if(error)throw error;
+      setMove(data);lastEdit=Date.now();render();syncState('✓ 이동 완료');notice('내일의 미룬 할 일에서 확인할 수 있습니다.');
+    }catch(e){syncState('이동 실패',true);notice(e.message)}
+    finally{moveBusy=false}
+  }
+  async function changeMoved(source,index,patch){
+    if(!familyUser||cloudLoading||moveBusy)return;
+    const m=movedTasks.find(x=>x.source_date===source&&x.source_index===index);if(!m)return;
+    moveBusy=true;syncState('저장 중…');
+    try{
+      const {error}=await db.from('study_task_moves').update(patch).eq('user_id',familyUser.id).eq('source_date',source).eq('source_index',index);if(error)throw error;
+      setMove({...m,...patch});lastEdit=Date.now();render();syncState('✓ 저장 완료');
+    }catch(e){syncState('저장 실패',true);notice(e.message)}
+    finally{moveBusy=false}
+  }
+  async function undoMoved(source,index){
+    if(!familyUser||cloudLoading||moveBusy)return;
+    const m=movedTasks.find(x=>x.source_date===source&&x.source_index===index);
+    if(!m||!confirm('원래 날짜('+source+')로 되돌릴까요?'))return;
+    moveBusy=true;
+    try{
+      const {error}=await db.from('study_task_moves').delete().eq('user_id',familyUser.id).eq('source_date',source).eq('source_index',index);if(error)throw error;
+      movedTasks=movedTasks.filter(x=>moveId(x)!==moveId(m));lastEdit=Date.now();render();syncState('✓ 복구 완료');
+    }catch(e){syncState('복구 실패',true);notice(e.message)}
+    finally{moveBusy=false}
+  }
+  function carryRows(day){
+    return movingTo(day).map(m=>{
+      const a='data-source="'+safe(m.source_date)+'" data-index="'+m.source_index+'"';
+      const actual=m.actual_minutes==null?'':m.actual_minutes;
+      return `<tr><td><input type="checkbox" class="check" data-moved-done ${a} ${m.done?'checked':''}></td><td><span class="tasklabel ${m.done?'is-done':''}">${safe(m.task_title)}</span><span class="carry-label">${safe(m.source_date)}에서 이동</span><button class="move-btn" data-moved-undo ${a}>원래 날짜로</button><button class="move-btn" data-moved-next ${a} ${m.done?'disabled':''}>내일로 →</button></td><td><span class="goal">${hm(m.goal_minutes)}</span></td><td><input type="number" min="0" max="999" inputmode="numeric" class="actual-input" data-moved-actual ${a} value="${actual}"><span class="unit">분</span></td><td>${comparison({actual},m.goal_minutes)}</td></tr>`;
+    }).join('');
+  }
+  function carrySection(day){
+    if(!movingTo(day).length)return '';
+    return `<div class="carry-table"><h3 class="carry-heading">📦 미룬 할 일 · ${movingTo(day).length}개</h3><table><thead><tr><th class="c-done">완료</th><th>할 일</th><th class="c-goal">목표</th><th class="c-actual">실제</th><th class="c-diff">목표 대비</th></tr></thead><tbody>${carryRows(day)}</tbody></table></div>`;
+  }
+  $('dayView').addEventListener('click',e=>{
+    const el=e.target.closest('[data-defer],[data-moved-next],[data-moved-undo]');if(!el)return;
+    if(el.hasAttribute('data-defer'))void deferTask(Number(el.dataset.defer));
+    else if(el.hasAttribute('data-moved-undo'))void undoMoved(el.dataset.source,Number(el.dataset.index));
+    else{const m=movedTasks.find(x=>x.source_date===el.dataset.source&&x.source_index===Number(el.dataset.index));if(m&&!m.done&&confirm('하루 더 미룰까요?'))void changeMoved(m.source_date,m.source_index,{target_date:isoNext(m.target_date)})}
+  });
+  $('dayView').addEventListener('change',e=>{
+    const el=e.target;if(!familyUser||cloudLoading)return;
+    if(el.matches('[data-moved-done]'))void changeMoved(el.dataset.source,Number(el.dataset.index),{done:el.checked});
+    if(el.matches('[data-moved-actual]'))void changeMoved(el.dataset.source,Number(el.dataset.index),{actual_minutes:el.value===''?null:Math.min(999,Math.max(0,Number(el.value)))});
+  });
+
   const keyOf=(day,item)=>day+'-'+item;
   const rec=(day,item)=>records[keyOf(day,item)]||{};
   const goal=(day)=>DAYS[day].items.reduce((a,x)=>a+x[1],0);
@@ -159,21 +231,21 @@ body:not(.signed-in) #dayView input,body:not(.signed-in) #noteInput,body:not(.si
   const compact=(min)=>{const h=Math.floor(min/60),m=min%60;return h?(h+'시간'+(m?' '+m+'분':'')):m+'분'};
   const dateAt=(offset)=>{const d=new Date(selectedWeek);d.setDate(d.getDate()+offset);return d};
   const dateRange=()=>{const a=dateAt(0),b=dateAt(6);return `${a.getFullYear()}. ${a.getMonth()+1}. ${a.getDate()} — ${b.getMonth()+1}. ${b.getDate()}`};
-  function stat(day){let completed=0,logged=0,actual=0;DAYS[day].items.forEach((_,i)=>{const r=rec(day,i);if(r.done)completed++;if(r.actual!==undefined&&r.actual!==''&&Number.isFinite(+r.actual)){logged++;actual+=+r.actual}});return{completed,logged,actual,total:DAYS[day].items.length,goal:goal(day)}}
+  function stat(day){let completed=0,logged=0,actual=0,total=0,planned=0;DAYS[day].items.forEach((task,i)=>{if(movingFrom(day,i))return;total++;planned+=task[1];const r=rec(day,i);if(r.done)completed++;if(r.actual!==undefined&&r.actual!==''&&Number.isFinite(+r.actual)){logged++;actual+=+r.actual}});movingTo(day).forEach(m=>{total++;planned+=m.goal_minutes;if(m.done)completed++;if(m.actual_minutes!=null){logged++;actual+=m.actual_minutes}});return{completed,logged,actual,total,goal:planned}}
   function weekStat(){return DAYS.reduce((a,_,d)=>{const s=stat(d);a.completed+=s.completed;a.total+=s.total;a.actual+=s.actual;a.goal+=s.goal;a.logged+=s.logged;return a},{completed:0,total:0,actual:0,goal:0,logged:0})}
   const pct=(a,b)=>b?Math.round(a/b*100):100;
   function renderTabs(){const html=DAYS.map((d,i)=>{const s=stat(i);const current=localISO(dateAt(i))===todayKey;return `<button class="daytab ${i===active?'active':''} ${current?'today':''}" data-day="${i}" aria-pressed="${i===active}" aria-label="${d.name}, ${s.completed}개 완료"><div class="daytop"><strong>${d.short}</strong><span>${dateAt(i).getMonth()+1}/${dateAt(i).getDate()}</span></div>${s.total?`<div class="dayratio"><b>${s.completed}</b> / ${s.total} 완료</div><div class="daygoal">목표 ${hm(s.goal)}</div><div class="progress"><span style="width:${pct(s.completed,s.total)}%"></span></div>`:`<div class="dayrest">☁️ 쉬는 날</div><div class="progress"><span style="width:100%;background:#9acbbe"></span></div>`}</button>`}).join('');$('dayTabs').innerHTML=html}
   function comparison(r,goal){if(r.actual===undefined||r.actual==='')return `<span class="diff">—</span>`;const diff=Number(r.actual)-goal;return diff===0?`<span class="diff">목표와 동일</span>`:diff<0?`<span class="diff less">${Math.abs(diff)}분 단축</span>`:`<span class="diff more">${diff}분 추가</span>`}
   function renderDay(){const d=DAYS[active],s=stat(active);const date=dateAt(active);const sub=`${date.getMonth()+1}월 ${date.getDate()}일 · 목표 ${hm(s.goal)}`;
-    if(!s.total){$('dayView').innerHTML=`<div class="cardhead"><div><h2 class="day-title">${d.name}</h2><div class="day-subtitle">${date.getMonth()+1}월 ${date.getDate()}일 · 재충전의 날</div></div><span class="completion">휴식 DAY</span></div><div class="rest-screen"><div class="rest-emoji">🌿</div><strong>오늘은 쉬어 가는 날!</strong><p>이번 주도 열심히 달려왔어.<br>충분히 쉬고, 좋아하는 일을 즐겨 보자.</p></div>`;return}
-    const rows=d.items.map((t,i)=>{const r=rec(active,i);const raw=r.actual!==undefined?r.actual:'';return `<tr><td><input class="check" aria-label="${safe(t[0])} 완료" type="checkbox" data-task="${i}" ${r.done?'checked':''}></td><td><label class="tasklabel ${r.done?'is-done':''}" data-label-task="${i}">${safe(t[0])}</label></td><td><span class="goal">${hm(t[1])}</span></td><td><input class="actual-input" aria-label="${safe(t[0])} 실제 소요 분" data-actual="${i}" type="number" min="0" max="999" step="1" inputmode="numeric" placeholder="0" value="${safe(raw)}"><span class="unit">분</span></td><td class="delta" data-diff="${i}">${comparison(r,t[1])}</td></tr>`}).join('');
-    $('dayView').innerHTML=`<div class="cardhead"><div><h2 class="day-title">${d.name}의 할 일</h2><div class="day-subtitle">${sub}</div></div><span class="completion">${s.completed} / ${s.total} 완료</span></div><div class="table-wrap"><table><thead><tr><th class="c-done">완료</th><th>할 일</th><th class="c-goal">목표 시간</th><th class="c-actual">실제 시간</th><th class="c-diff">목표 대비</th></tr></thead><tbody>${rows}</tbody></table></div><p class="table-tip">💡 실제 시간은 분 단위로 입력해. 예) 1시간 10분 → 70 입력</p>`;
+    if(!s.total){$('dayView').innerHTML=`<div class="cardhead"><div><h2 class="day-title">${d.name}</h2><div class="day-subtitle">${date.getMonth()+1}월 ${date.getDate()}일 · 재충전의 날</div></div><span class="completion">휴식 DAY</span></div><div class="rest-screen"><div class="rest-emoji">🌿</div><strong>오늘은 쉬어 가는 날!</strong><p>이번 주도 열심히 달려왔어.<br>충분히 쉬고, 좋아하는 일을 즐겨 보자.</p></div>${carrySection(active)}`;return}
+    const rows=d.items.map((t,i)=>{if(movingFrom(active,i))return '';const r=rec(active,i);const raw=r.actual!==undefined?r.actual:'';return `<tr><td><input class="check" aria-label="${safe(t[0])} 완료" type="checkbox" data-task="${i}" ${r.done?'checked':''}></td><td><label class="tasklabel ${r.done?'is-done':''}" data-label-task="${i}">${safe(t[0])}</label></td><td><span class="goal">${hm(t[1])}</span></td><td><input class="actual-input" aria-label="${safe(t[0])} 실제 소요 분" data-actual="${i}" type="number" min="0" max="999" step="1" inputmode="numeric" placeholder="0" value="${safe(raw)}"><span class="unit">분</span></td><td class="delta" data-diff="${i}">${comparison(r,t[1])}<button class="move-btn" data-defer="${i}" ${r.done?'disabled':''}>내일로 →</button></td></tr>`}).join('');
+    $('dayView').innerHTML=`<div class="cardhead"><div><h2 class="day-title">${d.name}의 할 일</h2><div class="day-subtitle">${sub}</div></div><span class="completion">${s.completed} / ${s.total} 완료</span></div><div class="table-wrap"><table><thead><tr><th class="c-done">완료</th><th>할 일</th><th class="c-goal">목표 시간</th><th class="c-actual">실제 시간</th><th class="c-diff">목표 대비</th></tr></thead><tbody>${rows}</tbody></table></div>${carrySection(active)}<p class="table-tip">💡 실제 시간은 분 단위로 입력해. 예) 1시간 10분 → 70 입력</p>`;
     $('dayView').querySelectorAll('[data-label-task]').forEach(el=>el.addEventListener('click',()=>{const cb=$('dayView').querySelector(`[data-task="${el.dataset.labelTask}"]`);cb.click()}));
   }
   function renderStats(){const s=stat(active),w=weekStat(),p=pct(s.completed,s.total);const displayP=s.total?p:100;
     $('dayStats').innerHTML=`<h3 class="side-title">📊 오늘의 기록</h3><div class="circlearea"><div class="donut" style="background:conic-gradient(var(--mint) ${displayP}%,#e9eff4 0)"><div class="donut-core"><b>${s.total?p:100}%</b><span>${s.total?'완료율':'휴식'}</span></div></div><div class="donut-copy"><b>${s.total?s.completed+' / '+s.total+'개':'충전 완료'}</b><span>${s.total?'하나씩 완료해 보자!':'쉬는 것도 중요한 계획!'}</span></div></div><div class="statrow"><span>오늘 목표 시간</span><b>${hm(s.goal)}</b></div><div class="statrow"><span>오늘 실제 기록</span><b>${hm(s.actual)} <span class="minor">(${s.logged}/${s.total}건)</span></b></div><div class="statrow"><span>이번 주 완료</span><b>${w.completed} / ${w.total}개</b></div><div class="statrow"><span>이번 주 목표 총합</span><b>${hm(w.goal)}</b></div>`;
   }
-  function printCard(day){const d=DAYS[day],s=stat(day);const rows=d.items.map((t,i)=>{const r=rec(day,i),val=r.actual===undefined||r.actual===''?'______':String(r.actual)+'분';return `<tr><td><span class="print-check ${r.done?'checked':''}">${r.done?'✓':''}</span></td><td>${safe(t[0])}</td><td>${hm(t[1])}</td><td>${safe(val)}</td></tr>`}).join('');const note=records[`note-${day}`]||'';
+  function printCard(day){const d=DAYS[day],s=stat(day);const rows=d.items.map((t,i)=>{if(movingFrom(day,i))return '';const r=rec(day,i),val=r.actual===undefined||r.actual===''?'______':String(r.actual)+'분';return `<tr><td><span class="print-check ${r.done?'checked':''}">${r.done?'✓':''}</span></td><td>${safe(t[0])}</td><td>${hm(t[1])}</td><td>${safe(val)}</td></tr>`}).join('')+movingTo(day).map(m=>`<tr><td>${m.done?'✓':'□'}</td><td>${safe(m.task_title)} (이월)</td><td>${hm(m.goal_minutes)}</td><td>${m.actual_minutes==null?'______':m.actual_minutes+'분'}</td></tr>`).join('');const note=records[`note-${day}`]||'';
     return `<div class="print-card"><div class="print-cardheader"><strong>${d.name} <span style="font-size:9pt">${dateAt(day).getMonth()+1}/${dateAt(day).getDate()}</span></strong><span>${s.total?'목표 '+hm(s.goal)+' · '+s.completed+'/'+s.total+' 완료':'휴식'}</span></div>${s.total?`<table class="print-table"><colgroup><col style="width:6%"><col style="width:51%"><col style="width:21%"><col style="width:22%"></colgroup><thead><tr><th>✓</th><th>할 일</th><th>목표</th><th>실제(분)</th></tr></thead><tbody>${rows}</tbody></table>`:`<div class="print-rest">☁️ 오늘은 편안히 쉬는 날!</div>`}<div class="print-note">한마디: ${safe(note)||'_________________________________________________'}</div></div>`;
   }
   function renderPrint(){const s=weekStat();const header=(page)=>`<header class="print-head"><div><div class="print-eyebrow">원래 일정 유지 · 시간 수정 · WEEKLY CHECKLIST</div><h1>나의 일주일 공부 플래너</h1><div class="print-date">${dateRange()}</div></div><div class="print-meta">${page} / 2 · 완료 ${s.completed}/${s.total}개</div></header>`;
